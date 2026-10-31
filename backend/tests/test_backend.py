@@ -1,3 +1,4 @@
+import secrets
 import asyncio
 import io
 import json
@@ -21,7 +22,7 @@ from backend.service import generate_chunk
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(output_dir=tmp_path / 'outputs', db_path=tmp_path / 'history.sqlite3', timeout=0.05, retry_delay=0)
+    return Settings(output_dir=tmp_path / 'outputs', db_path=tmp_path / 'history.sqlite3', timeout=0.05, retry_delay=0, runtime_dir=tmp_path / 'runtime', clips_dir=tmp_path / 'clips')
 
 
 @pytest.fixture
@@ -75,7 +76,7 @@ def test_voices(client):
     assert client.get('/voices/en-01').json() == voices[3]
     assert client.get('/voices/missing').status_code == 404
     assert client.get('/voices?language=fr').status_code == 422
-    assert all(set(v) == {'id','name','language','gender','style','preview_url','reference_clip','reference_transcript','consent_note'} for v in voices)
+    assert all(set(v) == {'id','name','language','gender','style','preview_url','reference_clip','reference_transcript','consent_note','is_custom','has_reference'} for v in voices)
 
 
 @pytest.mark.parametrize('change,status', [({'text':''},422),({'text':'   '},422),({'text':'!!!'},422),({'text':'x'*5001},422),({'language':'fr'},422),({'voice_id':'unknown'},400),({'voice_id':'hi-01'},400),({'speed':0.49},422),({'speed':2.01},422),({'unexpected':'field'},422)])
@@ -191,26 +192,28 @@ def test_route_override(settings, tmp_path):
     assert custom.route('en')[0]=='mock'
 
 
-def test_keys_only_from_dotenv(monkeypatch, tmp_path):
+def test_environment_keys_override_dotenv(monkeypatch, tmp_path):
     import backend.settings as module
     monkeypatch.setattr(module,'ROOT',tmp_path)
-    monkeypatch.setenv('REPLICATE_API_TOKEN','not-from-file')
-    (tmp_path/'.env').write_text('REPLICATE_API_TOKEN=file-key\nFAL_KEY=file-fal\n')
+    process_key, file_key, fal_key = (secrets.token_hex(24) for _ in range(3))
+    monkeypatch.setenv('REPLICATE_API_TOKEN',process_key)
+    (tmp_path/'.env').write_text(f'REPLICATE_API_TOKEN={file_key}\nFAL_KEY={fal_key}\n')
     settings=Settings.from_env()
-    assert settings.keys=={'replicate':'file-key','fal':'file-fal'}
-    assert 'file-key' not in repr(settings)
+    assert settings.keys=={'replicate':process_key,'fal':fal_key}
+    assert process_key not in repr(settings)
 
 
 @pytest.mark.parametrize('kind', ['replicate','fal'])
 def test_hosted_adapter_contract(settings, kind):
     stream=io.BytesIO(); sf.write(stream,np.zeros(240),24000,format='WAV')
     seen=[]
+    token=secrets.token_hex(24)
     def handler(req):
         seen.append(req)
         if req.url.host.endswith('delivery') or req.url.host.endswith('media'):
             assert 'authorization' not in req.headers
             return httpx.Response(200,content=stream.getvalue())
-        assert req.headers['authorization'] == ('Bearer fixture' if kind=='replicate' else 'Key fixture')
+        assert req.headers['authorization'] == (('Bearer ' if kind=='replicate' else 'Key ') + token)
         if req.method=='POST':
             data=json.loads(req.content)
             if kind=='replicate':
@@ -225,7 +228,7 @@ def test_hosted_adapter_contract(settings, kind):
             return httpx.Response(200,json={'status':'COMPLETED'})
         return httpx.Response(200,json={'audio':{'url':'https://v3.fal.media/test.wav'}})
     cls=ReplicateProvider if kind=='replicate' else FalProvider
-    provider=cls('fixture',transport=httpx.MockTransport(handler))
+    provider=cls(token,transport=httpx.MockTransport(handler))
     route=replace(settings,provider=kind).route('en')[1]
     result=asyncio.run(generate_chunk(provider,'Hello','en',{},route,replace(settings,timeout=2)))
     assert result.sample_rate==24000 and len(result.samples)==240
