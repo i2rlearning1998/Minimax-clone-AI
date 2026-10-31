@@ -1,0 +1,68 @@
+[
+  {
+    "id": "hi-01",
+    "name": "Asha (demo)",
+    "language": "hi",
+    "gender": "female",
+    "style": "calm",
+    "preview_url": null,
+    "reference_clip": null,
+    "reference_transcript": null,
+    "consent_note": "Dummy metadata only; no recorded person or consent implied. Add authorized reference audio before using a real voice identity."
+  },
+  {
+    "id": "hi-02",
+    "name": "Ravi (demo)",
+    "language": "hi",
+    "gender": "male",
+    "style": "narration",
+    "preview_url": null,
+    "reference_clip": null,
+    "reference_transcript": null,
+    "consent_note": "Dummy metadata only; no recorded person or consent implied. Add authorized reference audio before using a real voice identity."
+  },
+  {
+    "id": "hi-03",
+    "name": "Meera (demo)",
+    "language": "hi",
+    "gender": "neutral",
+    "style": "friendly",
+    "preview_url": null,
+    "reference_clip": null,
+    "reference_transcript": null,
+    "consent_note": "Dummy metadata only; no recorded person or consent implied. Add authorized reference audio before using a real voice identity."
+  },
+  {
+    "id": "en-01",
+    "name": "Alex (demo)",
+    "language": "en",
+    "gender": "female",
+    "style": "calm",
+    "preview_url": null,
+    "reference_clip": null,
+    "reference_transcript": null,
+    "consent_note": "Dummy metadata only; no recorded person or consent implied. Add authorized reference audio before using a real voice identity."
+  },
+  {
+    "id": "en-02",
+    "name": "Emma (demo)",
+    "language": "en",
+    "gender": "male",
+    "style": "narration",
+    "preview_url": null,
+    "reference_clip": null,
+    "reference_transcript": null,
+    "consent_note": "Dummy metadata only; no recorded person or consent implied. Add authorized reference audio before using a real voice identity."
+  },
+  {
+    "id": "en-03",
+    "name": "Sam (demo)",
+    "language": "en",
+    "gender": "neutral",
+    "style": "friendly",
+    "preview_url": null,
+    "reference_clip": null,
+    "reference_transcript": null,
+    "consent_note": "Dummy metadata only; no recorded person or consent implied. Add authorized reference audio before using a real voice identity."
+  }
+]

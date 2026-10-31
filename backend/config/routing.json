@@ -1,0 +1,52 @@
+{
+  "hi": {
+    "provider": null,
+    "mock": {},
+    "replicate": {
+      "model": "resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c",
+      "language": "hi",
+      "input_fields": {
+        "text": "text",
+        "language": "language",
+        "reference_clip": "reference_audio"
+      }
+    },
+    "fal": {
+      "model": "fal-ai/chatterbox/text-to-speech/multilingual",
+      "language": "hindi",
+      "input_fields": {
+        "text": "text",
+        "language": "voice"
+      },
+      "extra_input": {
+        "custom_audio_language": "hindi"
+      },
+      "reference_voice_field": "voice"
+    }
+  },
+  "en": {
+    "provider": null,
+    "mock": {},
+    "replicate": {
+      "model": "resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c",
+      "language": "en",
+      "input_fields": {
+        "text": "text",
+        "language": "language",
+        "reference_clip": "reference_audio"
+      }
+    },
+    "fal": {
+      "model": "fal-ai/chatterbox/text-to-speech/multilingual",
+      "language": "english",
+      "input_fields": {
+        "text": "text",
+        "language": "voice"
+      },
+      "extra_input": {
+        "custom_audio_language": "english"
+      },
+      "reference_voice_field": "voice"
+    }
+  }
+}
