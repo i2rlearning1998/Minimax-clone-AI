@@ -6,3 +6,4 @@ numpy>=2,<3
 soundfile>=0.12,<1
 pytest>=8,<10
 python-multipart>=0.0.18,<1
+edge-tts==7.3.1
