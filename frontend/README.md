@@ -1,6 +1,6 @@
 # Voice Studio frontend
 
-Mobile-first Vite + React + TypeScript client. Devanagari fonts are bundled through @fontsource (no external font requests). Uses only the contract in `backend/docs/API.md`; backend code is unchanged. All network calls live in `src/api.ts`. Requires Node.js 22.12+ (or a compatible newer LTS) and npm.
+Mobile-first Vite + React + TypeScript client. Devanagari fonts are bundled through @fontsource (no external font requests). Uses only the contract in `backend/docs/API.md`. All network calls live in `src/api.ts`. Requires Node.js 22.12+ (or a compatible newer LTS) and npm.
 
 ## Install and configure
 
@@ -70,3 +70,11 @@ API keys are entered only in the local Settings drawer and sent to the loopback 
 Key fields live only in React memory, are cleared after a Save attempt, and disappear when the drawer closes. They never enter localStorage, sessionStorage, URL or logs. The backend saves them locally with restrictive permissions; only masked metadata comes back. Reference clips stay local until a hosted generation explicitly transmits them. UI Settings and voice changes reject non-loopback clients: use the browser on the backend computer, not a phone or proxy.
 
 Settings errors include forbidden access, save failures and sanitized provider-test failures. Test connection has no automatic frontend retry. Do not repeatedly test a slow provider; credit may be spent. The chosen Chatterbox models use reference audio but do not consume reference transcripts upstream; transcripts are stored and supplied to adapters for models that support them.
+
+## Free providers
+
+Settings offers Mock, Free (auto), Cloudflare (English, free tier), Edge (Hindi+English, unofficial), Replicate and fal. Start with **Free (auto)** → Save → Test connection: no paid key is required. Hindi uses Edge; English uses Cloudflare when its token and valid Account ID are saved, otherwise Edge. The backend selects the route; the browser does not retry or silently switch providers.
+
+Cloudflare Account ID is a 32-character hexadecimal non-secret identifier. API token is password input, cleared from component memory after saving; only Saved ••••last4 is displayed. Clear key and Clear Account ID are separate actions. Nothing secret goes into local/session storage, URL or VITE variables. Settings is available only on the backend computer. Edge has no credential requirement; it is unofficial, personal testing only, may be blocked/rate-limited, and is not for commercial use.
+
+Cloudflare is English only with a free daily allocation; Edge supports Hindi/English. Neither clones voices: selecting My voice gives a clear 422. Replicate/fal are paid cloning options. Mock alone displays the silent-audio banner. Test connection runs only on click and consumes provider allocation/credit where applicable. Follow [TESTING.md](TESTING.md#free-live-test) for account setup and a live checklist.
