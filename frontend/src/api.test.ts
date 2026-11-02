@@ -87,3 +87,39 @@ describe('local provider and custom voice API', () => {
     expect(mock.mock.calls[0][1].headers).toBeUndefined();
   });
 });
+
+describe('free providers', () => {
+  it('saves Cloudflare credentials in body only and clears token/account via empty 204', async () => {
+    const { localApi } = await import('./api');
+    const token = crypto.randomUUID();
+    const response = new Response(null, {status:204});
+    const json = vi.spyOn(response, 'json');
+    const mock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({provider:'free',providers:{}}))).mockResolvedValue(response);
+    vi.stubGlobal('fetch', mock);
+    await localApi.saveSettings({provider:'free',cloudflare_api_token:token,cloudflare_account_id:crypto.randomUUID().replaceAll('-','')});
+    expect(mock.mock.calls[0][0]).not.toContain(token);
+    expect(JSON.parse(mock.mock.calls[0][1].body).cloudflare_api_token).toBe(token);
+    await expect(localApi.clearKey('cloudflare')).resolves.toBeUndefined();
+    await expect(localApi.clearCloudflareAccount()).resolves.toBeUndefined();
+    expect(mock.mock.calls[1][0]).toContain('/keys/cloudflare');
+    expect(mock.mock.calls[2][0]).toContain('/cloudflare/account');
+    expect(json).not.toHaveBeenCalled();
+  });
+  it('keeps settings validation and quota errors without automatic retry', async () => {
+    const { localApi } = await import('./api');
+    const mock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({detail:'Invalid provider settings'}),{status:422}))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ok:false,message:'Free daily limit shayad khatam ho gayi, kal try karo ya doosra provider chuno.'}),{status:429}));
+    vi.stubGlobal('fetch',mock);
+    await expect(localApi.saveSettings({provider:'cloudflare',cloudflare_account_id:'invalid'})).rejects.toMatchObject({status:422});
+    await expect(localApi.testProvider()).rejects.toMatchObject({status:429,message:'Free daily limit shayad khatam ho gayi, kal try karo ya doosra provider chuno.'});
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
+  it('selects keyless Edge with no credential fields', async () => {
+    const {localApi} = await import('./api');
+    const mock=vi.fn().mockResolvedValue(new Response(JSON.stringify({provider:'edge',providers:{}})));
+    vi.stubGlobal('fetch',mock);
+    await localApi.saveSettings({provider:'edge'});
+    expect(JSON.parse(mock.mock.calls[0][1].body)).toEqual({provider:'edge'});
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+});
