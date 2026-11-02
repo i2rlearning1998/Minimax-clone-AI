@@ -20,7 +20,7 @@ from .voice_library import VoiceLibrary, MAX_CLIP_BYTES, convert_clip
 from .storage import History
 from .text import chunk_text, normalize_text
 from .service import provider_for, generate_chunk
-from .providers.base import ProviderError, ProviderTimeout, ProviderConfigurationError
+from .providers.base import ProviderError, ProviderTimeout, ProviderConfigurationError, ProviderInputError, ProviderLimitError, validate_capabilities
 
 log = logging.getLogger('tts')
 
@@ -110,7 +110,7 @@ def create_app(settings=None, provider=None):
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, exc):
         if request.url.path.startswith('/settings/provider'):
-            return JSONResponse(status_code=422, content={'detail': 'Invalid provider settings. Check provider, key length and model slug.'})
+            return JSONResponse(status_code=422, content={'detail': 'Invalid provider settings. Check provider, key length, model slug and Cloudflare Account ID (32 hexadecimal characters).'})
         return JSONResponse(status_code=422, content={'detail': 'Invalid request', 'errors': [
             {'field': '.'.join(str(x) for x in e['loc']), 'message': e['msg']} for e in exc.errors()]})
 
@@ -149,11 +149,19 @@ def create_app(settings=None, provider=None):
         return public_settings(current_settings())
 
     @app.delete('/settings/provider/keys/{name}', status_code=204)
-    def clear_provider_key(name: Literal['replicate', 'fal']):
+    def clear_provider_key(name: Literal['replicate', 'fal', 'cloudflare']):
         try:
             runtime.delete_key(name)
         except (OSError, ValueError):
             raise HTTPException(500, 'Could not clear provider key') from None
+        return Response(status_code=204)
+
+    @app.delete('/settings/provider/cloudflare/account', status_code=204)
+    def clear_cloudflare_account():
+        try:
+            runtime.delete_cloudflare_account()
+        except (OSError, ValueError):
+            raise HTTPException(500, 'Could not clear Cloudflare Account ID') from None
         return Response(status_code=204)
 
     @app.post('/settings/provider/test')
@@ -165,6 +173,10 @@ def create_app(settings=None, provider=None):
             clip = await generate_chunk(selected, 'Hello! Your voice studio is ready.', 'en', {}, route, effective)
             audio, rate = assemble([clip])
             return {'ok': True, 'message': 'Mock test succeeded (silent audio)' if name == 'mock' else 'Provider generated valid audio', 'duration_sec': round(len(audio) / rate, 6)}
+        except ProviderLimitError as exc:
+            return JSONResponse(status_code=429, content={'ok': False, 'message': str(exc), 'duration_sec': 0})
+        except ProviderInputError as exc:
+            return JSONResponse(status_code=422, content={'ok': False, 'message': str(exc), 'duration_sec': 0})
         except Exception:
             # Never echo upstream exceptions, bodies, signed URLs or keys.
             return JSONResponse(status_code=502, content={'ok': False, 'message': 'Provider test failed. Check your saved key, model, credit balance and provider availability.', 'duration_sec': 0})
@@ -208,13 +220,16 @@ def create_app(settings=None, provider=None):
             raise HTTPException(400, 'Invalid voice_id')
         if voice['language'] != body.language:
             raise HTTPException(400, 'Voice language does not match requested language')
-        voice = app.state.library.for_provider(voice)
         effective = current_settings()
         try:
             name, route = effective.route(body.language)
+            validate_capabilities(name, body.language, voice)
             selected = provider or provider_for(name, effective)
+        except ProviderInputError as exc:
+            raise HTTPException(422, str(exc)) from None
         except (KeyError, ValueError, OSError, ProviderConfigurationError):
             raise HTTPException(503, 'TTS provider routing is not configured') from None
+        voice = app.state.library.for_provider(voice)
         normalized = normalize_text(body.text, body.language)
         identifier = str(uuid4())
         final = settings.output_dir / (identifier + '.wav')
@@ -235,6 +250,10 @@ def create_app(settings=None, provider=None):
             return result
         except ProviderConfigurationError:
             raise HTTPException(503, 'Provider API key or model is not configured') from None
+        except ProviderLimitError as exc:
+            raise HTTPException(429, str(exc)) from None
+        except ProviderInputError as exc:
+            raise HTTPException(422, str(exc)) from None
         except ProviderTimeout:
             raise HTTPException(504, 'Speech provider timed out after 3 attempts') from None
         except ProviderError:
