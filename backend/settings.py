@@ -2,15 +2,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import json
 import os
+import re
 from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parent
+
+
+def valid_cloudflare_account(value):
+    return isinstance(value, str) and re.fullmatch(r'[a-fA-F0-9]{32}', value) is not None
 
 
 @dataclass
 class Settings:
     provider: str = 'mock'
     provider_explicit: bool = False
+    cloudflare_account_id: str = ''
     runtime_dir: Path = ROOT / '.runtime'
     clips_dir: Path = ROOT / 'voices_data' / 'clips'
     output_dir: Path = ROOT / 'outputs'
@@ -42,14 +48,26 @@ class Settings:
             routing_path=Path(value('ROUTING_PATH', str(ROOT / 'config/routing.json'))),
             timeout=timeout,
             cors_origins=tuple(x.strip() for x in value('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173').split(',') if x.strip()),
-            keys={'replicate': value('REPLICATE_API_TOKEN', ''), 'fal': value('FAL_KEY', '')},
+            keys={'replicate': value('REPLICATE_API_TOKEN', ''), 'fal': value('FAL_KEY', ''), 'cloudflare': value('CLOUDFLARE_API_TOKEN', '')},
+            cloudflare_account_id=value('CLOUDFLARE_ACCOUNT_ID', ''),
             model_overrides={p: value(p.upper() + '_MODEL', '') for p in ('replicate', 'fal')},
         )
+
+    def selected_provider(self, language='en'):
+        config = json.loads(self.routing_path.read_text(encoding='utf-8'))[language]
+        return self.provider if self.provider_explicit else config.get('provider') or self.provider
 
     def route(self, language, provider_name=None):
         data = json.loads(self.routing_path.read_text(encoding='utf-8'))
         language_config = data[language]
         provider = provider_name or (self.provider if self.provider_explicit else language_config.get('provider') or self.provider)
+        if provider == 'free':
+            automatic = language_config['free']
+            preferred = automatic.get('preferred')
+            ready = bool(preferred and self.keys.get(preferred))
+            if preferred == 'cloudflare':
+                ready = ready and valid_cloudflare_account(self.cloudflare_account_id)
+            provider = preferred if ready else automatic['fallback']
         route = dict(language_config[provider])
         route['model'] = self.model_overrides.get(provider) or route.get('model', '')
         return provider, route

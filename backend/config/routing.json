@@ -22,6 +22,35 @@
         "custom_audio_language": "hindi"
       },
       "reference_voice_field": "voice"
+    },
+    "cloudflare": {
+      "model": "@cf/myshell-ai/melotts",
+      "language": "en",
+      "input_fields": {
+        "text": "prompt",
+        "language": "lang"
+      },
+      "audio_fields": [
+        "audio",
+        "audio_base64",
+        "audio_url",
+        "url"
+      ],
+      "audio_url_hosts": [
+        "cloudflare.com",
+        "r2.dev"
+      ]
+    },
+    "edge": {
+      "voice_map": {
+        "hi-01": "hi-IN-SwaraNeural",
+        "hi-02": "hi-IN-MadhurNeural",
+        "hi-03": "hi-IN-SwaraNeural"
+      },
+      "default_voice_id": "hi-01"
+    },
+    "free": {
+      "fallback": "edge"
     }
   },
   "en": {
@@ -47,6 +76,36 @@
         "custom_audio_language": "english"
       },
       "reference_voice_field": "voice"
+    },
+    "cloudflare": {
+      "model": "@cf/myshell-ai/melotts",
+      "language": "en",
+      "input_fields": {
+        "text": "prompt",
+        "language": "lang"
+      },
+      "audio_fields": [
+        "audio",
+        "audio_base64",
+        "audio_url",
+        "url"
+      ],
+      "audio_url_hosts": [
+        "cloudflare.com",
+        "r2.dev"
+      ]
+    },
+    "edge": {
+      "voice_map": {
+        "en-01": "en-US-JennyNeural",
+        "en-02": "en-US-GuyNeural",
+        "en-03": "en-US-AriaNeural"
+      },
+      "default_voice_id": "en-01"
+    },
+    "free": {
+      "fallback": "edge",
+      "preferred": "cloudflare"
     }
   }
 }

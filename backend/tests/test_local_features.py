@@ -49,7 +49,7 @@ def test_keys_masked_atomic_permissions_and_clear(settings, caplog):
     with TestClient(create_app(replace(settings,keys={'replicate':token})),client=('127.0.0.1',1)) as client:
         result=client.get('/settings/provider')
         assert result.status_code==200 and token not in result.text
-        assert result.json()['providers']['replicate']=={'has_key':True,'key_hint':token[-4:],'model':settings.route('en','replicate')[1]['model']}
+        assert result.json()['providers']['replicate']=={'has_key':True,'key_hint':token[-4:],'model':settings.route('en','replicate')[1]['model'],'requires_key':True}
         saved=client.put('/settings/provider',json={'provider':'replicate','replicate_api_key':token})
         assert saved.status_code==200 and token not in saved.text and token not in caplog.text
         assert saved.headers['cache-control']=='no-store'

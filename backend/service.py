@@ -1,10 +1,12 @@
 import asyncio
 import logging
 import httpx
-from .providers.base import ProviderError, ProviderTimeout, ProviderConfigurationError
+from .providers.base import ProviderError, ProviderTimeout, ProviderConfigurationError, ProviderInputError, ProviderLimitError
 from .providers.mock import MockProvider
 from .providers.replicate import ReplicateProvider
 from .providers.fal import FalProvider
+from .providers.cloudflare import CloudflareProvider
+from .providers.edge import EdgeProvider
 
 log = logging.getLogger('tts')
 
@@ -14,6 +16,10 @@ def provider_for(name, settings):
         return MockProvider()
     if name == 'replicate':
         return ReplicateProvider(settings.keys.get(name), settings.timeout)
+    if name == 'cloudflare':
+        return CloudflareProvider(settings.keys.get(name), settings.cloudflare_account_id, settings.timeout)
+    if name == 'edge':
+        return EdgeProvider()
     if name == 'fal':
         return FalProvider(settings.keys.get(name), settings.timeout)
     raise ProviderConfigurationError('Unknown TTS provider')
@@ -24,8 +30,10 @@ async def generate_chunk(provider, text, language, voice, route, settings):
     for attempt in range(3):
         try:
             return await asyncio.wait_for(provider.generate(text, language, voice, route), timeout=settings.timeout)
-        except ProviderConfigurationError:
+        except (ProviderConfigurationError, ProviderInputError):
             raise
+        except ProviderLimitError:
+            error = ProviderLimitError()
         except (TimeoutError, httpx.TimeoutException):
             error = ProviderTimeout('Speech provider timed out')
         except Exception:
