@@ -72,6 +72,7 @@ export function errorHint(error: unknown): string {
     case 403: return 'Open this app on the same computer as the backend using an allowed local origin.';
     case 413: return 'Choose an audio clip no larger than 10 MiB.';
     case 404: return 'This item may have been deleted. Refresh history.';
+    case 429: return 'Try tomorrow or choose another provider; generation is never retried automatically by this app.';
     case 502: return 'The speech provider could not generate audio. Retry when ready.';
     case 503: return 'The backend provider needs configuration.';
     case 504: return 'The provider timed out. Check history before retrying.';
@@ -79,19 +80,20 @@ export function errorHint(error: unknown): string {
   }
 }
 
-export type ProviderName = 'mock' | 'replicate' | 'fal';
-export type KeyProvider = Exclude<ProviderName, 'mock'>;
-export interface ProviderInfo { has_key: boolean; key_hint: string; model: string }
+export type ProviderName = 'mock' | 'replicate' | 'fal' | 'cloudflare' | 'edge' | 'free';
+export type KeyProvider = 'replicate' | 'fal' | 'cloudflare';
+export interface ProviderInfo { has_key: boolean; key_hint: string; model: string; requires_key?: boolean; has_account_id?: boolean; account_id?: string }
 export interface ProviderSettings { provider: ProviderName; providers: Record<ProviderName, ProviderInfo> }
 export interface ProviderUpdate {
   provider: ProviderName; replicate_api_key?: string; fal_api_key?: string;
-  replicate_model?: string; fal_model?: string;
+  replicate_model?: string; fal_model?: string; cloudflare_api_token?: string; cloudflare_account_id?: string;
 }
 export interface ProviderTest { ok: boolean; message: string; duration_sec: number }
 export const localApi = {
   settings: () => request<ProviderSettings>('/settings/provider'),
   saveSettings: (body: ProviderUpdate) => request<ProviderSettings>('/settings/provider', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
   clearKey: (provider: KeyProvider) => request<void>(`/settings/provider/keys/${provider}`, { method: 'DELETE' }),
+  clearCloudflareAccount: () => request<void>('/settings/provider/cloudflare/account', { method: 'DELETE' }),
   testProvider: () => request<ProviderTest>('/settings/provider/test', { method: 'POST' }, GENERATION_TIMEOUT_MS),
   uploadVoice: (body: FormData) => request<Voice>('/voices', { method: 'POST', body }, 120_000),
   deleteVoice: (id: string) => request<void>(`/voices/${encodeURIComponent(id)}`, { method: 'DELETE' }),
