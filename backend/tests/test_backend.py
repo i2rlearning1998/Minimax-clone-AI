@@ -199,7 +199,7 @@ def test_environment_keys_override_dotenv(monkeypatch, tmp_path):
     monkeypatch.setenv('REPLICATE_API_TOKEN',process_key)
     (tmp_path/'.env').write_text(f'REPLICATE_API_TOKEN={file_key}\nFAL_KEY={fal_key}\n')
     settings=Settings.from_env()
-    assert settings.keys=={'replicate':process_key,'fal':fal_key}
+    assert settings.keys=={'replicate':process_key,'fal':fal_key,'cloudflare':''}
     assert process_key not in repr(settings)
 
 
