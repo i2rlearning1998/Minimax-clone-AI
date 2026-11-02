@@ -26,12 +26,12 @@ python -m venv backend/venv
 source backend/venv/bin/activate
 python -m pip install -r backend/requirements.txt
 cp backend/.env.example backend/.env
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --log-level info
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --no-proxy-headers --log-level info
 ```
 
 Windows PowerShell: activate with `backend\venv\Scripts\Activate.ps1`; copy with `Copy-Item backend/.env.example backend/.env`. Keep `http://localhost:5173` in backend `CORS_ORIGINS`. For a different port or a phone accessing the computer over LAN, configure the backend binding, API origin and CORS accordingly. `localhost` on a phone refers to the phone.
 
-The default backend mock generates silent WAV. Dummy voice names are metadata, not distinct real speakers. Real provider configuration belongs only in backend `.env`.
+The default backend mock generates silent WAV. Dummy voice names are metadata, not distinct real speakers. Real provider configuration can now be entered in the local Settings panel; no code edits or restart are needed.
 
 ## Tests and build
 
@@ -43,7 +43,7 @@ npm run build
 npm run preview -- --port 5173 --strictPort
 ```
 
-Three Vitest tests cover HTTP detail/422 messages, network/ten-minute timeout with no retry, and bodyless 204 deletion plus API-relative audio URLs. The lockfile supports `npm ci` for repeat installs. See `TESTING.md` for the manual checklist.
+Vitest tests cover HTTP detail/422 messages, network/ten-minute timeout with no retry, and bodyless 204 deletion plus API-relative audio URLs. The lockfile supports `npm ci` for repeat installs. See `TESTING.md` for the manual checklist.
 
 ## Behavior
 
@@ -55,4 +55,18 @@ Three Vitest tests cover HTTP detail/422 messages, network/ten-minute timeout wi
 - Backend `detail` is displayed verbatim as React text. HTTP status supplies contextual guidance; 422 also displays `errors[].message`. Retry buttons are manual. Audio-load errors have their own Retry control.
 - Theme follows system preference initially and persists a user choice when localStorage is available. Layout supports 360px; labels, focus indicators, live statuses, native controls and reduced-motion preferences are included.
 
-No authentication or API keys are added; the backend contract is a local single-user service. Keep it local until backend authentication/user isolation exists.
+API keys are entered only in the local Settings drawer and sent to the loopback backend; no commercial authentication is added; the backend contract is a local single-user service. Keep it local until backend authentication/user isolation exists.
+
+
+## Complete local workflow
+
+1. Start backend on 127.0.0.1 using `--no-proxy-headers`, and frontend on localhost:5173. Install updated backend requirements (including python-multipart).
+2. Open Settings (gear). Choose Replicate or fal, paste the corresponding key into its password field, keep the prefilled model unless you know its compatible schema, and Save settings.
+3. Saved indicators display only the last four key characters. Blank fields retain saved values. Clear key removes the active key, including environment/.env fallback; it does not edit those source files.
+4. Click Test connection explicitly. The saved provider generates one short English line and may use credit. Saving/opening settings never tests automatically. Unsaved changes must be saved before testing.
+5. Add voice: provide name, language, gender, style, a clear 3–30 second reference clip (max 10 MiB), its exact transcript, and permission confirmation. Preview the saved voice, select it, and generate a short script in its language.
+6. Mock mode shows a clear silent-audio banner. Demo/My voice badges distinguish placeholders from recordings. Custom deletion confirms first and preserves existing generated history.
+
+Key fields live only in React memory, are cleared after a Save attempt, and disappear when the drawer closes. They never enter localStorage, sessionStorage, URL or logs. The backend saves them locally with restrictive permissions; only masked metadata comes back. Reference clips stay local until a hosted generation explicitly transmits them. UI Settings and voice changes reject non-loopback clients: use the browser on the backend computer, not a phone or proxy.
+
+Settings errors include forbidden access, save failures and sanitized provider-test failures. Test connection has no automatic frontend retry. Do not repeatedly test a slow provider; credit may be spent. The chosen Chatterbox models use reference audio but do not consume reference transcripts upstream; transcripts are stored and supplied to adapters for models that support them.

@@ -1,5 +1,6 @@
 export type Language = 'hi' | 'en';
 export interface Voice {
+  is_custom: boolean; has_reference: boolean;
   id: string; name: string; language: Language; gender: string; style: string;
   preview_url: string | null; reference_clip: string | null;
   reference_transcript: string | null; consent_note: string;
@@ -33,7 +34,7 @@ async function request<T>(path: string, options: RequestInit = {}, timeout = 30_
     const response = await fetch(audioUrl(path), { ...options, signal: controller.signal });
     if (!response.ok) {
       const data = await response.json().catch(() => null);
-      const detail = typeof data?.detail === 'string' ? data.detail : `Request failed (HTTP ${response.status})`;
+      const detail = typeof data?.detail === 'string' ? data.detail : typeof data?.message === 'string' ? data.message : `Request failed (HTTP ${response.status})`;
       const extra = response.status === 422 && Array.isArray(data?.errors)
         ? data.errors.map((e: { message?: unknown }) => typeof e.message === 'string' ? e.message : '').filter(Boolean).join(' · ') : '';
       throw new ApiError(extra ? `${detail}: ${extra}` : detail, response.status);
@@ -68,6 +69,8 @@ export function errorHint(error: unknown): string {
   if (error.kind === 'timeout') return 'Refresh history before retrying a generation to avoid duplicates.';
   switch (error.status) {
     case 400: case 422: return 'Check your text, language, voice and speed.';
+    case 403: return 'Open this app on the same computer as the backend using an allowed local origin.';
+    case 413: return 'Choose an audio clip no larger than 10 MiB.';
     case 404: return 'This item may have been deleted. Refresh history.';
     case 502: return 'The speech provider could not generate audio. Retry when ready.';
     case 503: return 'The backend provider needs configuration.';
@@ -75,3 +78,21 @@ export function errorHint(error: unknown): string {
     default: return 'Please try again when the backend is available.';
   }
 }
+
+export type ProviderName = 'mock' | 'replicate' | 'fal';
+export type KeyProvider = Exclude<ProviderName, 'mock'>;
+export interface ProviderInfo { has_key: boolean; key_hint: string; model: string }
+export interface ProviderSettings { provider: ProviderName; providers: Record<ProviderName, ProviderInfo> }
+export interface ProviderUpdate {
+  provider: ProviderName; replicate_api_key?: string; fal_api_key?: string;
+  replicate_model?: string; fal_model?: string;
+}
+export interface ProviderTest { ok: boolean; message: string; duration_sec: number }
+export const localApi = {
+  settings: () => request<ProviderSettings>('/settings/provider'),
+  saveSettings: (body: ProviderUpdate) => request<ProviderSettings>('/settings/provider', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  clearKey: (provider: KeyProvider) => request<void>(`/settings/provider/keys/${provider}`, { method: 'DELETE' }),
+  testProvider: () => request<ProviderTest>('/settings/provider/test', { method: 'POST' }, GENERATION_TIMEOUT_MS),
+  uploadVoice: (body: FormData) => request<Voice>('/voices', { method: 'POST', body }, 120_000),
+  deleteVoice: (id: string) => request<void>(`/voices/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};

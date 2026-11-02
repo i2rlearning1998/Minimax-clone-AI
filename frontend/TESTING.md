@@ -36,3 +36,17 @@ Start backend and frontend as described in README. Open browser Network tools; f
 - [ ] Theme persists after reload; disabled storage does not crash the app. Reduced motion disables spinner animation.
 
 Automated commands: `npm test` and `npm run build`. These do not prove real hosted TTS quality or paid-provider availability.
+
+
+## Live test (explicit, may spend provider credit)
+
+- [ ] Run backend/frontend locally on the same computer. Open Settings; choose Replicate/fal. Enter your own API key in the password field and save. Verify Saved ••••last4, cleared password field, and no key in localStorage/sessionStorage/URL. Do not include keys in screenshots or bug reports.
+- [ ] Confirm no synthesis call happens on drawer open/Save. Click Test connection once. Record provider/model, HTTP status, sanitized message, approximate elapsed time and duration. Check billing/credit in the provider dashboard if it fails. Never copy an Authorization header or raw provider body into a report.
+- [ ] Add one recording you have permission to use (3–30 sec, under 10 MiB), exact transcript, language/gender/style and consent. Verify My voice badge and audible preview. Try unchecked consent/short/invalid file and confirm clear validation errors.
+- [ ] Generate a short Hindi script and a short English script with matching-language voices. Use your custom entry for its language; upload a second language entry/reference if testing your own voice in both. Demos use model default voices. Listen for pronunciation, silence, clipping, voice similarity and duration; the mock provider remains intentionally silent.
+- [ ] Try a 1,000+ character script. Keep tab open; expect chunk processing to take minutes. Verify one POST, no automatic retry, a downloadable WAV and persisted history. After a timeout, inspect history before manual Retry to avoid duplicate charges.
+- [ ] Clear the saved key; GET settings should show no active key even if .env has one. Provider test should fail cleanly. Save a replacement, then switch to Mock and confirm the silent-audio banner.
+- [ ] Delete custom voice with Cancel then Confirm. Preview/voice disappear only after Confirm; previous generations remain playable. Settings drawer keyboard focus stays inside and Escape closes it when idle.
+- [ ] Log problems with app commit, provider/model, selected language, clip duration/format (not the private clip unless intended), script length, sanitized HTTP status/message, elapsed time, browser/OS and reproduction steps. Do not attach key files, runtime settings, request bodies containing keys, HAR files or private voice recordings unintentionally.
+
+Live calls are not part of automated tests. Automated transport tests use generated ephemeral values and intercept all provider HTTP calls.

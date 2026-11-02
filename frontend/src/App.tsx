@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, ApiError, audioUrl, errorHint, errorMessage } from './api';
-import type { Generation, HistoryEntry, Language, Voice } from './api';
+import SettingsPanel from './SettingsPanel';
+import AddVoice from './AddVoice';
+import { localApi, api, ApiError, audioUrl, errorHint, errorMessage } from './api';
+import type { Generation, HistoryEntry, Language, Voice, ProviderSettings } from './api';
 
 function ErrorNotice({ error, onRetry, retryLabel = 'Retry', disabled = false }: {
   error: unknown; onRetry: () => void; retryLabel?: string; disabled?: boolean;
@@ -31,6 +33,25 @@ function initialTheme(): 'light' | 'dark' {
 function duration(seconds: number) { return `${seconds.toFixed(1)} sec`; }
 
 export default function App() {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAddVoice, setShowAddVoice] = useState(false);
+  const [providerSettings, setProviderSettings] = useState<ProviderSettings | null>(null);
+  const [settingsError, setSettingsError] = useState<unknown>(null);
+  const [voiceDeleteError, setVoiceDeleteError] = useState<unknown>(null);
+  const [voiceDeleting, setVoiceDeleting] = useState(false);
+  const voiceDeleteLock = useRef(false);
+  async function refreshSettings() {
+    setSettingsError(null);
+    try { setProviderSettings(await localApi.settings()); } catch (e) { setSettingsError(e); }
+  }
+  useEffect(() => { void refreshSettings(); }, []);
+  async function deleteVoice(id: string) {
+    if (voiceDeleteLock.current || !window.confirm('Delete this custom voice and its reference clip? Existing generations will stay in history.')) return;
+    voiceDeleteLock.current = true; setVoiceDeleting(true); setVoiceDeleteError(null);
+    try { await localApi.deleteVoice(id); setVoiceReload(v => v + 1); }
+    catch(e) { setVoiceDeleteError(e); }
+    finally { voiceDeleteLock.current = false; setVoiceDeleting(false); }
+  }
   const [theme, setTheme] = useState(initialTheme);
   const [text, setText] = useState('');
   const [language, setLanguage] = useState<Language>('hi');
@@ -143,7 +164,9 @@ export default function App() {
 
   return <><a className="skip-link" href="#studio">Skip to studio</a>
     <header className="site-header"><a className="brand" href="#studio" aria-label="Voice Studio home"><span className="brand-mark" aria-hidden="true">◖</span>voice<span className="brand-light">studio</span><span className="beta">BETA</span></a>
-      <button className="theme-button" type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}><span aria-hidden="true">{theme === 'dark' ? '☼' : '☾'}</span><span>{theme === 'dark' ? 'Light' : 'Dark'} mode</span></button></header>
+      <div className="header-actions"><button type="button" onClick={() => setShowSettings(true)} disabled={pending} aria-label="Open provider settings">⚙ <span>Settings</span></button><button className="theme-button" type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}><span aria-hidden="true">{theme === 'dark' ? '☼' : '☾'}</span><span>{theme === 'dark' ? 'Light' : 'Dark'} mode</span></button></div></header>
+    {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} onSaved={value => { setProviderSettings(value); setSettingsError(null); }} />}
+    {showAddVoice && <AddVoice language={language} onClose={() => setShowAddVoice(false)} onAdded={voice => { setLanguage(voice.language); setVoiceReload(v => v + 1); }} />}
     <main id="studio">
       <div className="hero"><div><p className="eyebrow"><span />YOUR WORDS. A NEW VOICE.</p><h1>Make yourself<br /><em>heard.</em></h1><p className="intro">Turn a thought into a voice.<br className="mobile-break" /> Create in Hindi or English.</p></div><div className="hero-art"><Wave /><span>FROM TEXT TO POSSIBILITY</span></div></div>
       <div className="workspace"><div className="creation-column"><form className="panel editor-panel" onSubmit={submit} aria-busy={pending}>
@@ -152,16 +175,20 @@ export default function App() {
         <textarea id="script" value={text} onChange={e => setText(Array.from(e.target.value).slice(0, 5000).join(''))} disabled={pending} placeholder={"A story, an idea, a simple hello…\nअपनी कहानी यहाँ लिखें।"} aria-describedby="script-help character-count" />
         <div className="editor-meta"><span id="script-help">A little punctuation goes a long way.</span><span id="character-count" className={count >= 4900 ? 'near-limit' : ''}>{count.toLocaleString()} <span>/ 5,000</span></span></div>
         <div className="voice-section"><div className="section-heading"><h2><span className="step">02</span>Find your voice</h2><div className="language-field"><label className="sr-only" htmlFor="language">Language</label><select id="language" value={language} disabled={pending} onChange={e => { setLanguage(e.target.value as Language); setVoices([]); setVoiceId(''); }}><option value="hi">Hindi · हिन्दी</option><option value="en">English</option></select></div></div>
-          <fieldset className="voice-grid" disabled={pending || voicesLoading}><legend className="sr-only">Choose a voice</legend>
-            {voices.map((voice, index) => <div className={`voice-card ${voiceId === voice.id ? 'selected' : ''}`} key={voice.id}><label><input type="radio" name="voice" value={voice.id} checked={voiceId === voice.id} onChange={() => setVoiceId(voice.id)} /><span className={`avatar avatar-${index % 3}`} aria-hidden="true">{voice.name.slice(0, 1)}</span><strong>{voice.name}</strong><span className="voice-meta">{voice.gender} · {voice.style}</span></label>
-              {voice.preview_url && <Player url={voice.preview_url} label={`Preview ${voice.name}`} />}</div>)}
+          <div className="voice-toolbar"><span className="fineprint">Demo library & your recordings</span><button type="button" disabled={pending || voiceDeleting} onClick={() => setShowAddVoice(true)}>+ Add voice</button></div>
+          <fieldset className="voice-grid" disabled={pending || voicesLoading || voiceDeleting}><legend className="sr-only">Choose a voice</legend>
+            {voices.map((voice, index) => <div className={`voice-card ${voiceId === voice.id ? 'selected' : ''} ${voice.preview_url ? 'with-preview' : ''}`} key={voice.id}><label><input type="radio" name="voice" value={voice.id} checked={voiceId === voice.id} onChange={() => setVoiceId(voice.id)} /><span className={`avatar avatar-${index % 3}`} aria-hidden="true">{voice.name.slice(0, 1)}</span><span className="voice-badge">{voice.is_custom ? "My voice" : "Demo"}</span><strong>{voice.name}</strong><span className="voice-meta">{voice.gender} · {voice.style}</span></label>
+              {voice.preview_url && <Player url={voice.preview_url} label={`Preview ${voice.name}`} />}{voice.is_custom && <button className="custom-delete" type="button" disabled={pending || voiceDeleting} onClick={() => void deleteVoice(voice.id)} aria-label={`Delete voice ${voice.name}`}>Delete voice</button>}</div>)}
           </fieldset>
           {voicesLoading && <p className="muted" role="status">Loading voices…</p>}
           {!voicesLoading && !voicesError && voices.length === 0 && <p role="status">No voices available for this language.</p>}
           <ErrorNotice error={voicesError} onRetry={() => setVoiceReload(v => v + 1)} disabled={voicesLoading} />
+          <ErrorNotice error={voiceDeleteError} onRetry={() => { setVoiceDeleteError(null); setVoiceReload(v => v + 1); }} retryLabel="Refresh voices" />
           <p className="fineprint">Demo voices are placeholders. Preview appears when audio is available.</p>
         </div>
         <div className="speed-section"><div><label htmlFor="speed">Speaking speed</label><output htmlFor="speed">{speed.toFixed(2).replace(/0$/, '')}×</output></div><input id="speed" type="range" min="0.5" max="2" step="0.05" value={speed} disabled={pending} onChange={e => setSpeed(Number(e.target.value))} aria-valuetext={`${speed} times speed`} /><div className="speed-scale"><span>0.5× · Slower</span><span>2× · Faster</span></div><p className="fineprint">Speed adjustment also changes pitch.</p></div>
+        {providerSettings?.provider === "mock" && <div className="mock-banner" role="status">Mock mode: audio silent hai. Settings mein provider chuno.</div>}
+        <ErrorNotice error={settingsError} onRetry={() => void refreshSettings()} />
         <button className="generate-button" type="submit" disabled={!valid || pending || voicesLoading}>{pending ? <><span className="spinner" />Creating your audio…</> : <>Generate speech <span aria-hidden="true">↗</span></>}</button>
         <p className="generation-note" role={pending ? 'status' : undefined}>{pending ? 'Long scripts can take several minutes. Keep this tab open — your request will wait up to 10 minutes.' : 'Hindi & English · WAV audio · Up to 5,000 characters'}</p>
         <ErrorNotice error={generationError} onRetry={retryGeneration} disabled={!valid || pending} />

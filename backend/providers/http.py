@@ -44,6 +44,6 @@ async def download(client, url):
             if len(payload) > 25 * 1024 * 1024:
                 raise ProviderError('Provider audio too large')
     with sf.SoundFile(io.BytesIO(payload)) as audio:
-        if audio.format != 'WAV' or audio.frames > audio.samplerate * 180 or audio.channels > 2:
-            raise ProviderError('Provider must return a WAV chunk under 180 seconds')
+        if audio.frames <= 0 or audio.frames > audio.samplerate * 180 or not 8000 <= audio.samplerate <= 192000 or not 1 <= audio.channels <= 8:
+            raise ProviderError('Provider must return decodable audio under 180 seconds')
         return Audio(audio.read(dtype='float32', always_2d=True), audio.samplerate)
