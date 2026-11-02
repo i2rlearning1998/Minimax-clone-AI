@@ -1,4 +1,4 @@
-# Frontend API contract v1.1 — local settings and custom voices
+# Frontend API contract v1.2 — free providers, local settings and custom voices
 
 Base URL: `http://localhost:8000`. JSON except audio download and 204 deletion. No commercial authentication. Settings and voice mutations require loopback clients and an allowed Origin when provided. Configure frontend origin in `CORS_ORIGINS`. IDs are UUID strings. All times are UTC ISO 8601. `audio_url` is **relative to the API origin**, not the frontend origin.
 
@@ -76,7 +76,53 @@ Settings endpoints below allow only client `127.0.0.1` or `::1`, otherwise 403. 
 200:
 
 ```json
-{"provider":"mock","providers":{"mock":{"has_key":false,"key_hint":"","model":""},"replicate":{"has_key":true,"key_hint":"1234","model":"owner/model:VERSION"},"fal":{"has_key":false,"key_hint":"","model":"owner/model"}}}
+{
+  "provider": "mock",
+  "providers": {
+    "mock": {
+      "has_key": false,
+      "key_hint": "",
+      "model": "",
+      "requires_key": false
+    },
+    "free": {
+      "has_key": false,
+      "key_hint": "",
+      "model": "",
+      "requires_key": false
+    },
+    "cloudflare": {
+      "has_key": false,
+      "key_hint": "",
+      "model": "@cf/myshell-ai/melotts",
+      "requires_key": true,
+      "has_account_id": false,
+      "account_id": ""
+    },
+    "edge": {
+      "has_key": false,
+      "key_hint": "",
+      "model": "",
+      "requires_key": false
+    },
+    "replicate": {
+      "has_key": false,
+      "key_hint": "",
+      "model": "owner/model:VERSION",
+      "requires_key": true
+    },
+    "fal": {
+      "has_key": false,
+      "key_hint": "",
+      "model": "owner/model",
+      "requires_key": true
+    }
+  },
+  "resolved_providers": {
+    "hi": "mock",
+    "en": "mock"
+  }
+}
 ```
 
 Model values above illustrate the shape; GET returns actual configured defaults. key_hint contains only the last four characters; if a key has four or fewer characters the hint is empty to avoid returning the full key. No key input should be prefilled from this response. Models reflect English routing unless a global override is saved. Each saved model override applies to both languages. 403 remote/origin rejection; 503 unreadable settings.
@@ -85,13 +131,14 @@ Model values above illustrate the shape; GET returns actual configured defaults.
 
 JSON object:
 
-- `provider` (required): mock | replicate | fal.
-- `replicate_api_key`, `fal_api_key` (optional): password strings; missing/empty/whitespace retains existing key. A nonblank new key must be 8–4096 ASCII characters without spaces.
+- `provider` (required): mock | free | cloudflare | edge | replicate | fal.
+- `replicate_api_key`, `fal_api_key`, `cloudflare_api_token` (optional): password strings; missing/empty/whitespace retains existing key. A nonblank new key must be 8–4096 ASCII characters without spaces.
+- `cloudflare_account_id` (optional): exactly 32 hexadecimal characters; missing/empty preserves the saved account. Account IDs are not secret and GET returns the valid ID for prefilling, plus `has_account_id`.
 - `replicate_model`, `fal_model` (optional): owner/model slug, optional version; missing/blank preserves existing override. No arbitrary URLs.
 
 200 returns the same masked object as GET. No synthesis occurs. 422 invalid input, 403 denied, 500 save failure. Runtime overrides take precedence over process environment, .env, and routing defaults. Applied to subsequent requests without restart.
 
-## DELETE /settings/provider/keys/{replicate|fal}
+## DELETE /settings/provider/keys/{replicate|fal|cloudflare}
 
 204 empty body; do not parse JSON. Writes an empty runtime override, suppressing any environment/.env key as well. 403 denied, 422 unknown provider, 500 storage error. Subsequent GET has_key=false. Saving a new key re-enables it.
 
@@ -146,3 +193,19 @@ Loopback/origin guarded. Confirm in UI. 204 empty body; 403 demo voice (read-onl
 ## Custom voices in POST /tts
 
 Use a returned custom voice_id and its matching language. The backend passes the stored reference as base64 data URI and its transcript into the provider adapter; no local path/localhost URL goes upstream. Bundled Chatterbox schemas use the audio reference but do not define a transcript parameter. Transcript is available to configurable input mappings for other models. There is no new TTS request field; all existing result/history formats remain unchanged.
+
+## Free provider behavior and additions
+
+GET `/settings/provider` always includes six providers. `requires_key` is false for mock, edge and free; `has_key:false` on Edge does not mean unavailable. Cloudflare requires both `has_key` and `has_account_id`. `resolved_providers` maps hi/en to the actual provider. Saving `free` leaves the selected provider `free`: Hindi → Edge; English → Cloudflare when token/account are configured, otherwise Edge. Routing is defined in routing.json, not hardcoded in the client. POST test uses the resolved English provider and creates no history. No hosted call happens on GET/PUT.
+
+DELETE `/settings/provider/cloudflare/account`: no body, 204 empty response. Clears the account and suppresses environment/.env fallback. Same 403 loopback/origin, 500 storage error behavior as key deletion. Cloudflare token clear uses DELETE `/settings/provider/keys/cloudflare` and preserves the account; account clear preserves the token. PUT may include either or both, with the standard required provider field. Full tokens are never returned; `key_hint` is at most the last four characters.
+
+POST `/tts` additional errors (`{"detail":"..."}`):
+
+- 422 Cloudflare Hindi: `Cloudflare MeloTTS Hindi support nahi karta. Hindi ke liye Edge ya fal chuno.`
+- 422 custom voice with Edge/Cloudflare (also after Free resolves): `Ye provider voice clone nahi karta. Apni awaaz ke liye fal ya Replicate chuno.` No synthesis or history is created.
+- 429 Cloudflare quota/rate limit: `Free daily limit shayad khatam ho gayi, kal try karo ya doosra provider chuno.`
+
+POST `/settings/provider/test` uses the same quota message with HTTP 429 and `{ok:false,message,duration_sec:0}`. Other test failures remain sanitized 502. Frontend shows the response message and never retries automatically. Backend retains its bounded two retries; Free does not switch providers after a quota/failure response.
+
+Edge stock-voice IDs map through routing.json; custom voices are not supported by Edge or Cloudflare. Existing voices, history, audio URLs, delete-204 and cloning providers keep their contracts.
